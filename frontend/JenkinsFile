@@ -1,0 +1,52 @@
+podTemplate(yaml: '''
+    apiVersion: v1
+    kind: Pod
+    spec:
+      serviceAccountName: jenkins-admin
+      containers:
+        - name: jenkins-kaniko
+          image: gcr.io/kaniko-project/executor:debug
+          imagePullPolicy: Always
+          command:
+            - sleep
+          args:
+            - 30d
+        - name: alpine
+          image: 'alpine'
+          command:
+            - sleep
+          args:
+            - 30d
+      restartPolicy: Never
+''') {
+  node(POD_LABEL) {
+      
+        container('jenkins-kaniko') {
+            stage('Building and pushing image') {
+                sh '/kaniko/executor --context git://github.com/ssuji15/library-frontend --destination registry:5000/frontend:$BUILD_NUMBER --insecure --skip-tls-verify -v=debug'
+            }
+        }
+        
+        container('alpine') {
+            stage('Deploy new version') {
+
+                git 'https://github.com/ssuji15/library-frontend'
+                    
+                sh 'apk add curl'
+                sh 'curl -LO "https://storage.googleapis.com/kubernetes-release/release/v1.20.5/bin/linux/amd64/kubectl"'  
+                sh 'chmod u+x ./kubectl'
+
+                sh 'sed -i "s/VERSION/$BUILD_NUMBER/g" deployment-template.yaml'
+                sh 'cat deployment-template.yaml'
+                sh './kubectl apply -f deployment-template.yaml'
+                sleep 30
+                sh 'sed -i "s/VERSION/$BUILD_NUMBER/g" service-template.yaml'
+                sh './kubectl apply -f service-template.yaml'
+                sleep 30
+                sh './kubectl scale --replicas=0 deployments/frontend-`expr $BUILD_NUMBER - 1`'
+                
+                
+            }
+        }
+  }
+}

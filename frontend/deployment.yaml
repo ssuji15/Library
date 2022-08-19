@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-0
+  labels:
+    app: frontend
+    version: "0"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: frontend
+      version: "0"
+  template:
+    metadata:
+      labels:
+        app: frontend
+        version: "0"
+    spec:
+      containers:
+      - name: frontend
+        image: registry:30001/frontend:0
+        ports:
+        - containerPort: 80
